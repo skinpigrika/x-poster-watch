@@ -7,6 +7,7 @@ name: 見張り
 on:
   schedule:
     - cron: "*/5 * * * *"
+    - cron: "13 0 * * *"  # 毎日 日本時間 9:13 に、x-poster を動かせるかの確認（お試しモード・投稿しない）
   workflow_dispatch:
 
 concurrency:
@@ -22,6 +23,12 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+
+      - name: x-poster を動かせるかの確認（毎日1回。失敗したら GitHub からメールが届く）
+        if: github.event.schedule == '13 0 * * *' || github.event_name == 'workflow_dispatch'
+        env:
+          X_POSTER_TOKEN: ${{ secrets.X_POSTER_TOKEN }}
+        run: python3 watch.py --ping
 
       - name: 気象庁の情報を見る
         env:

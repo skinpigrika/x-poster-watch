@@ -115,14 +115,14 @@ def new_events(since):
     return list(dict.fromkeys(found))  # 同じ出来事の電文が何本あっても1件にする
 
 
-def trigger():
-    """x-poster の「ニュース速報」を、投稿する設定（お試しではない）で動かす。"""
+def trigger(dry_run=False):
+    """x-poster の「ニュース速報」を動かす。dry_run=True なら、お試しモード（投稿しない）で動かす（鍵が使えるかの確認）。"""
     token = os.environ.get("X_POSTER_TOKEN", "")
     if not token:
         raise SystemExit("X_POSTER_TOKEN（Secrets）がありません")
     url = (f"https://api.github.com/repos/{CONFIG['投稿のリポジトリ']}/actions/workflows/"
            f"{CONFIG['動かすワークフロー']}/dispatches")
-    body = json.dumps({"ref": "main", "inputs": {"dry_run": "false"}}).encode("utf-8")
+    body = json.dumps({"ref": "main", "inputs": {"dry_run": "true" if dry_run else "false"}}).encode("utf-8")
     request = urllib.request.Request(url, data=body, method="POST", headers={
         "Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28", "User-Agent": USER_AGENT})
@@ -130,7 +130,21 @@ def trigger():
         return response.status
 
 
+def ping():
+    """毎日1回の確認: x-poster を、お試しモード（投稿しない）で動かせるか試す。
+    動かせなければ、この実行が「失敗」になり、GitHub からメールが届く（鍵の間違い・期限切れに早く気づくため）。"""
+    try:
+        status = trigger(dry_run=True)
+    except Exception as error:
+        print(f"x-poster を動かせませんでした（{error}）。X_POSTER_TOKEN の鍵が間違っているか、期限が切れている可能性があります")
+        return 1
+    print(f"x-poster をお試しモードで動かせました（返事の番号 {status}）。鍵は使えます")
+    return 0
+
+
 def main():
+    if "--ping" in sys.argv:
+        return ping()
     dry_run = "--dry-run" in sys.argv
     now = datetime.now(timezone.utc)
     seen = json.loads(SEEN_FILE.read_text(encoding="utf-8")) if SEEN_FILE.exists() else {}
