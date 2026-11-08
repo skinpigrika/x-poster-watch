@@ -1,0 +1,39 @@
+# 5分ごとに気象庁の防災情報を見て、新しい大きな出来事があれば x-poster の「ニュース速報」を動かします。
+# 公開リポジトリなので、GitHub Actions の利用時間は無料です（回数の上限なし）。
+# GitHub の予約実行は、混んでいると数分〜十数分遅れることがあります。
+
+name: 見張り
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: watch
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 気象庁の情報を見る
+        env:
+          X_POSTER_TOKEN: ${{ secrets.X_POSTER_TOKEN }}
+        run: python3 watch.py
+
+      - name: 見た出来事を保存する
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add seen.json
+          if ! git diff --cached --quiet; then
+            git commit -m "見た出来事を記録しました"
+            git pull --rebase && git push
+          fi
